@@ -8,7 +8,7 @@ use crate::Service;
 /// Service that retries the request a certain
 /// amount of times before failing. Retries instantly
 /// with no timeout in between.
-pub struct RetryInstantly<R: Clone, T: Service<R>> {
+pub struct Retry<R: Clone, T: Service<R>> {
     inner: T,
     #[cfg(feature = "retry_wait")]
     duration: Duration,
@@ -16,7 +16,7 @@ pub struct RetryInstantly<R: Clone, T: Service<R>> {
     phantom: PhantomData<R>,
 }
 
-impl<R: Clone, T: Service<R>> Service<R> for RetryInstantly<R, T> {
+impl<R: Clone, T: Service<R>> Service<R> for Retry<R, T> {
     type Response = T::Response;
     type Error = T::Error;
     async fn request(&self, msg: R) -> Result<Self::Response, Self::Error> {
@@ -80,7 +80,7 @@ mod tests {
                 limit: 3,
             };
 
-            let retry_service = RetryInstantly {
+            let retry_service = Retry {
                 inner: service,
                 #[cfg(feature = "retry_wait")]
                 duration: Duration::from_millis(10),
@@ -97,7 +97,7 @@ mod tests {
                 limit: 4,
             };
 
-            let retry_service = RetryInstantly {
+            let retry_service = Retry {
                 inner: service,
                 #[cfg(feature = "retry_wait")]
                 duration: Duration::from_millis(10),
