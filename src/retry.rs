@@ -1,4 +1,7 @@
-use std::{marker::PhantomData, time::Duration};
+use std::marker::PhantomData;
+
+#[cfg(feature = "retry_wait")]
+use std::time::Duration;
 
 #[cfg(feature = "retry_wait")]
 use tokio::time::sleep;
@@ -6,21 +9,39 @@ use tokio::time::sleep;
 use crate::Service;
 
 /// Service that retries the request a certain
-/// amount of times before failing. Retries instantly
-/// with no timeout in between.
-pub struct Retry<R: Clone, T: Service<R>> {
+/// amount of times before failing.
+pub struct Retry<const RETRY_COUNT: usize, R: Clone, T: Service<R>> {
     inner: T,
     #[cfg(feature = "retry_wait")]
     duration: Duration,
-    retry_count: usize,
     phantom: PhantomData<R>,
 }
 
-impl<R: Clone, T: Service<R>> Service<R> for Retry<R, T> {
+impl<const RETRY_COUNT: usize, R: Clone, T: Service<R>> Retry<RETRY_COUNT, R, T> {
+    pub fn instant(service: T) -> Retry<RETRY_COUNT, R, T> {
+        Retry {
+            inner: service,
+            #[cfg(feature = "retry_wait")]
+            duration: Duration::ZERO,
+            phantom: PhantomData,
+        }
+    }
+
+    #[cfg(feature = "retry_wait")]
+    pub fn with_wait(service: T, duration: Duration) -> Retry<RETRY_COUNT, R, T> {
+        Retry {
+            inner: service,
+            duration,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<const RETRY_COUNT: usize, R: Clone, T: Service<R>> Service<R> for Retry<RETRY_COUNT, R, T> {
     type Response = T::Response;
     type Error = T::Error;
     async fn request(&self, msg: R) -> Result<Self::Response, Self::Error> {
-        let mut retries_left = self.retry_count;
+        let mut retries_left = RETRY_COUNT;
         loop {
             match self.inner.request(msg.clone()).await {
                 Ok(ok) => return Ok(ok),
@@ -80,13 +101,7 @@ mod tests {
                 limit: 3,
             };
 
-            let retry_service = Retry {
-                inner: service,
-                #[cfg(feature = "retry_wait")]
-                duration: Duration::from_millis(10),
-                retry_count: 3,
-                phantom: PhantomData,
-            };
+            let retry_service = Retry::<3, _, _>::instant(service);
 
             assert!(retry_service.request(()).await.is_ok());
         }
@@ -97,13 +112,7 @@ mod tests {
                 limit: 4,
             };
 
-            let retry_service = Retry {
-                inner: service,
-                #[cfg(feature = "retry_wait")]
-                duration: Duration::from_millis(10),
-                retry_count: 3,
-                phantom: PhantomData,
-            };
+            let retry_service: Retry<3, _, _> = Retry::<3, _, _>::instant(service);
 
             assert!(retry_service.request(()).await.is_err());
         }
