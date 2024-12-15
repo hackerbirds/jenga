@@ -1,0 +1,16 @@
+[package]
+name = "jenga"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+# todo: remove
+default = ["timeout", "retry"]
+retry = []
+timeout = ["dep:tokio"]
+
+[dependencies]
+tokio = { version = "1.42.0", optional = true, features = ["rt", "macros", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1.42.0", features = ["rt", "macros"] }
