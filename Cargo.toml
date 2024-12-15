@@ -4,9 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-# todo: remove
-default = ["timeout", "retry"]
 retry = []
+retry_wait = ["dep:tokio"]
 timeout = ["dep:tokio"]
 
 [dependencies]

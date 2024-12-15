@@ -1,4 +1,7 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, time::Duration};
+
+#[cfg(feature = "retry_wait")]
+use tokio::time::sleep;
 
 use crate::Service;
 
@@ -7,6 +10,8 @@ use crate::Service;
 /// with no timeout in between.
 pub struct RetryInstantly<R: Clone, T: Service<R>> {
     inner: T,
+    #[cfg(feature = "retry_wait")]
+    duration: Duration,
     retry_count: usize,
     phantom: PhantomData<R>,
 }
@@ -24,6 +29,12 @@ impl<R: Clone, T: Service<R>> Service<R> for RetryInstantly<R, T> {
                         return Err(err);
                     } else {
                         retries_left -= 1;
+
+                        #[cfg(feature = "retry_wait")]
+                        {
+                            sleep(self.duration).await;
+                        }
+
                         continue;
                     }
                 }
@@ -71,6 +82,8 @@ mod tests {
 
             let retry_service = RetryInstantly {
                 inner: service,
+                #[cfg(feature = "retry_wait")]
+                duration: Duration::from_millis(10),
                 retry_count: 3,
                 phantom: PhantomData,
             };
@@ -86,6 +99,8 @@ mod tests {
 
             let retry_service = RetryInstantly {
                 inner: service,
+                #[cfg(feature = "retry_wait")]
+                duration: Duration::from_millis(10),
                 retry_count: 3,
                 phantom: PhantomData,
             };
