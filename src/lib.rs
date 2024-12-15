@@ -1,3 +1,5 @@
+#[cfg(feature = "rate_limit")]
+pub mod rate_limit;
 #[cfg(feature = "retry")]
 pub mod retry;
 #[cfg(feature = "timeout")]

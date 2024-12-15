@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+rate_limit = []
 retry = []
 retry_wait = ["dep:tokio"]
 timeout = ["dep:tokio"]
