@@ -19,6 +19,16 @@ pub enum RateLimitError<R, T: Service<R>> {
     RateLimited,
 }
 
+impl<const LIMIT: usize, R: Clone, T: Service<R>> RateLimit<LIMIT, R, T> {
+    pub fn new(service: T) -> Self {
+        Self {
+            inner: service,
+            current: AtomicUsize::new(0),
+            phantom: PhantomData,
+        }
+    }
+}
+
 impl<const LIMIT: usize, R: Clone, T: Service<R>> Service<R> for RateLimit<LIMIT, R, T> {
     type Response = T::Response;
     type Error = RateLimitError<R, T>;
@@ -70,11 +80,7 @@ mod tests {
         {
             let service = TestRateLimitService {};
 
-            let rate_limit_service: RateLimit<1, _, _> = RateLimit {
-                inner: service,
-                current: AtomicUsize::new(0),
-                phantom: PhantomData,
-            };
+            let rate_limit_service = RateLimit::<1, _, _>::new(service);
 
             let (a, b) = join!(
                 rate_limit_service.request(()),

@@ -112,7 +112,7 @@ mod tests {
                 limit: 4,
             };
 
-            let retry_service: Retry<3, _, _> = Retry::<3, _, _>::instant(service);
+            let retry_service = Retry::<3, _, _>::instant(service);
 
             assert!(retry_service.request(()).await.is_err());
         }

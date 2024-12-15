@@ -18,6 +18,16 @@ pub enum TimeoutError<R, T: Service<R>> {
     TimeoutError,
 }
 
+impl<R, T: Service<R>> Timeout<R, T> {
+    pub fn new(service: T, timeout_duration: Duration) -> Self {
+        Timeout {
+            inner: service,
+            timeout_duration,
+            phantom: PhantomData,
+        }
+    }
+}
+
 impl<R, T: Service<R>> Service<R> for Timeout<R, T> {
     type Response = T::Response;
     type Error = TimeoutError<R, T>;
@@ -70,11 +80,7 @@ mod tests {
         assert!(service.request(18).await.is_err());
         assert_eq!(service.request(20).await.unwrap(), 40);
 
-        let service_timeout = Timeout {
-            inner: service,
-            timeout_duration: Duration::from_millis(15),
-            phantom: PhantomData,
-        };
+        let service_timeout = Timeout::new(service, Duration::from_millis(15));
 
         assert_eq!(service_timeout.request(10).await.unwrap(), 20);
         assert_eq!(
