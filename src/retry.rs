@@ -6,7 +6,7 @@ use std::time::Duration;
 #[cfg(feature = "retry_wait")]
 use tokio::time::sleep;
 
-use crate::Service;
+use crate::{Middleware, Service};
 
 /// Service that retries the request a certain
 /// amount of times before failing.
@@ -61,6 +61,14 @@ impl<const RETRY_COUNT: usize, R: Clone, T: Service<R>> Service<R> for Retry<RET
                 }
             };
         }
+    }
+}
+
+impl<const RETRY_COUNT: usize, R: Clone, T: Service<R>> Middleware<R, T>
+    for Retry<RETRY_COUNT, R, T>
+{
+    fn inner_service(&self) -> &T {
+        &self.inner
     }
 }
 

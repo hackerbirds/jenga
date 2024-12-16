@@ -11,3 +11,7 @@ pub trait Service<Request> {
     type Error;
     async fn request(&self, msg: Request) -> Result<Self::Response, Self::Error>;
 }
+
+pub trait Middleware<R, S: Service<R>>: Service<R> {
+    fn inner_service(&self) -> &S;
+}

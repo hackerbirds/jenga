@@ -2,7 +2,7 @@ use std::{marker::PhantomData, time::Duration};
 
 use tokio::time::timeout;
 
-use crate::Service;
+use crate::{Middleware, Service};
 
 /// A service that returns an Error if the
 /// time of the request exceeds the given timeout duration
@@ -36,6 +36,12 @@ impl<R, T: Service<R>> Service<R> for Timeout<R, T> {
             Ok(res) => res.map_err(|e| TimeoutError::ServiceError(e)),
             Err(_) => Err(TimeoutError::TimeoutError),
         }
+    }
+}
+
+impl<R, T: Service<R>> Middleware<R, T> for Timeout<R, T> {
+    fn inner_service(&self) -> &T {
+        &self.inner
     }
 }
 

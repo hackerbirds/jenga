@@ -3,7 +3,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use crate::Service;
+use crate::{Middleware, Service};
 
 /// A basic rate limiter that limits how many concurrent
 /// requests can happen on a given service.
@@ -51,6 +51,12 @@ impl<const LIMIT: usize, R: Clone, T: Service<R>> Service<R> for RateLimit<LIMIT
         self.current.fetch_sub(1, Ordering::Relaxed);
 
         resp.map_err(|e| RateLimitError::ServiceError(e))
+    }
+}
+
+impl<const LIMIT: usize, R: Clone, T: Service<R>> Middleware<R, T> for RateLimit<LIMIT, R, T> {
+    fn inner_service(&self) -> &T {
+        &self.inner
     }
 }
 
