@@ -10,9 +10,10 @@
 //! fail normally and return [`RestartError::ServiceError`]. If restarting
 //! fails, then [`RestartError::RestartingFailed`] is returned instead.
 
-use std::{cell::RefCell, marker::PhantomData};
+use std::{marker::PhantomData, ops::DerefMut};
 
 use thiserror::Error;
+use tokio::sync::Mutex;
 
 use crate::Service;
 
@@ -33,7 +34,7 @@ pub struct Restart<
     GE: core::error::Error,
     G: Service<GR, Response = S, Error = GE>,
 > {
-    service: RefCell<S>,
+    service: Mutex<S>,
     generator: G,
     r: PhantomData<SR>,
     g_r: GR,
@@ -53,7 +54,7 @@ impl<
     > Restart<SR, SResp, SE, S, GR, GE, G>
 {
     pub async fn new(generator: G, generator_msg: GR) -> Result<Self, GE> {
-        let service = RefCell::new(generator.request(generator_msg.clone()).await?);
+        let service = Mutex::new(generator.request(generator_msg.clone()).await?);
 
         Ok(Self {
             service,
@@ -81,22 +82,18 @@ impl<
     type Error = RestartError<SE, GE>;
 
     async fn request(&self, msg: SR) -> Result<Self::Response, Self::Error> {
-        let borrow = self.service.borrow();
-        match borrow.request(msg.clone()).await {
+        let mut lock = self.service.lock().await;
+        match lock.request(msg.clone()).await {
             Err(e1) => {
-                drop(borrow);
-
                 let new_service = self
                     .generator
                     .request(self.g_r.clone())
                     .await
                     .map_err(|e2| RestartError::<SE, GE>::RestartingFailed(e2, e1))?;
 
-                self.service.replace(new_service);
+                let _ = std::mem::replace(lock.deref_mut(), new_service);
 
-                let resp = self
-                    .service
-                    .borrow()
+                let resp = lock
                     .request(msg)
                     .await
                     .map_err(|e| RestartError::<SE, GE>::ServiceError(e))?;
@@ -176,17 +173,17 @@ mod tests {
         );
 
         let restart = Restart::new(generator, 2).await.unwrap();
-        assert_eq!(restart.service.borrow().id, 1);
+        assert_eq!(restart.service.lock().await.id, 1);
         assert!(restart.request(2).await.is_ok(), "Value is OK");
         assert_eq!(
-            restart.service.borrow().id,
+            restart.service.lock().await.id,
             1,
             "OK value did not cause a restart"
         );
 
         match restart.request(3).await.unwrap_err() {
             RestartError::ServiceError(_) => {
-                assert_eq!(restart.service.borrow().id, 2, "At this point the service should have restarted and inner id should be 2 instead of 1");
+                assert_eq!(restart.service.lock().await.id, 2, "At this point the service should have restarted and inner id should be 2 instead of 1");
             }
             RestartError::RestartingFailed(_, _) => {
                 panic!("Restart service failed and did not restart")
