@@ -17,70 +17,70 @@ use thiserror::Error;
 use crate::Service;
 
 #[derive(Debug, Error)]
-pub enum RestartError<E: core::error::Error, E2: core::error::Error> {
+pub enum RestartError<SE: core::error::Error, GE: core::error::Error> {
     #[error("{0}")]
-    ServiceError(E),
+    ServiceError(SE),
     #[error("Could not restart failed service: {0}. Original error: {1}")]
-    RestartingFailed(E2, E),
+    RestartingFailed(GE, SE),
 }
 
 pub struct Restart<
-    R: Clone,
-    R2: Clone,
-    A,
-    E: core::error::Error,
-    E2: core::error::Error,
-    S: Service<R, Response = A, Error = E>,
-    G: Service<R2, Response = S, Error = E2>,
+    SR: Clone,
+    SResp,
+    SE: core::error::Error,
+    S: Service<SR, Response = SResp, Error = SE>,
+    GR: Clone,
+    GE: core::error::Error,
+    G: Service<GR, Response = S, Error = GE>,
 > {
     service: RefCell<S>,
     generator: G,
-    r: PhantomData<R>,
-    r2: R2,
-    a: PhantomData<A>,
-    e: PhantomData<E>,
-    e2: PhantomData<E2>,
+    r: PhantomData<SR>,
+    g_r: GR,
+    s_resp: PhantomData<SResp>,
+    e: PhantomData<SE>,
+    g_e: PhantomData<GE>,
 }
 
 impl<
-        R: Clone,
-        R2: Clone,
-        A,
-        E: core::error::Error,
-        E2: core::error::Error,
-        S: Service<R, Response = A, Error = E>,
-        G: Service<R2, Response = S, Error = E2>,
-    > Restart<R, R2, A, E, E2, S, G>
+        SR: Clone,
+        SResp,
+        SE: core::error::Error,
+        S: Service<SR, Response = SResp, Error = SE>,
+        GR: Clone,
+        GE: core::error::Error,
+        G: Service<GR, Response = S, Error = GE>,
+    > Restart<SR, SResp, SE, S, GR, GE, G>
 {
-    pub async fn new(generator: G, generator_msg: R2) -> Result<Self, E2> {
+    pub async fn new(generator: G, generator_msg: GR) -> Result<Self, GE> {
         let service = RefCell::new(generator.request(generator_msg.clone()).await?);
 
         Ok(Self {
             service,
             generator,
             r: PhantomData,
-            r2: generator_msg,
-            a: PhantomData,
+            g_r: generator_msg,
+            s_resp: PhantomData,
             e: PhantomData,
-            e2: PhantomData,
+            g_e: PhantomData,
         })
     }
 }
 
 impl<
-        R: Clone,
-        R2: Clone,
-        A,
-        E: core::error::Error,
-        E2: core::error::Error,
-        S: Service<R, Response = A, Error = E>,
-        G: Service<R2, Response = S, Error = E2>,
-    > Service<R> for Restart<R, R2, A, E, E2, S, G>
+        SR: Clone,
+        SResp,
+        SE: core::error::Error,
+        S: Service<SR, Response = SResp, Error = SE>,
+        GR: Clone,
+        GE: core::error::Error,
+        G: Service<GR, Response = S, Error = GE>,
+    > Service<SR> for Restart<SR, SResp, SE, S, GR, GE, G>
 {
-    type Response = A;
-    type Error = RestartError<E, E2>;
+    type Response = SResp;
+    type Error = RestartError<SE, GE>;
 
-    async fn request(&self, msg: R) -> Result<Self::Response, Self::Error> {
+    async fn request(&self, msg: SR) -> Result<Self::Response, Self::Error> {
         let borrow = self.service.borrow();
         match borrow.request(msg.clone()).await {
             Err(e1) => {
@@ -88,9 +88,9 @@ impl<
 
                 let new_service = self
                     .generator
-                    .request(self.r2.clone())
+                    .request(self.g_r.clone())
                     .await
-                    .map_err(|e2| RestartError::<E, E2>::RestartingFailed(e2, e1))?;
+                    .map_err(|e2| RestartError::<SE, GE>::RestartingFailed(e2, e1))?;
 
                 self.service.replace(new_service);
 
@@ -99,14 +99,15 @@ impl<
                     .borrow()
                     .request(msg)
                     .await
-                    .map_err(|e| RestartError::<E, E2>::ServiceError(e))?;
+                    .map_err(|e| RestartError::<SE, GE>::ServiceError(e))?;
 
                 Ok(resp)
             }
-            ok => ok.map_err(|e| RestartError::<E, E2>::ServiceError(e)),
+            ok => ok.map_err(|e| RestartError::<SE, GE>::ServiceError(e)),
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use std::sync::{
