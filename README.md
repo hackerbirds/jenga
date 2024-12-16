@@ -12,3 +12,4 @@ Activate the feature flags to use the middlewares you want.
 - `retry`: retries the request N times before failing. instant with no waiting in between
 - `retry_wait`: adds the ability on `retry` to wait between retries. relies on Tokio for async timer, which is why it's behind a feature flag.
 - `rate_limit`: allows up to N concurrent requests from being processed at the same time.
+- `restart`: restart a service automatically if it returns an error, using a generator service
