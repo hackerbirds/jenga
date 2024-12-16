@@ -8,7 +8,7 @@ pub mod timeout;
 #[allow(async_fn_in_trait)]
 pub trait Service<Request> {
     type Response;
-    type Error;
+    type Error: core::error::Error;
     async fn request(&self, msg: Request) -> Result<Self::Response, Self::Error>;
 }
 

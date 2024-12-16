@@ -77,6 +77,8 @@ mod tests {
 
     use std::sync::Mutex;
 
+    use thiserror::Error;
+
     use super::*;
 
     #[derive(Debug)]
@@ -85,15 +87,21 @@ mod tests {
         limit: usize,
     }
 
+    #[derive(Debug, Error)]
+    pub enum FakeError {
+        #[error("")]
+        Error,
+    }
+
     impl Service<()> for TestRetryService {
         type Response = ();
-        type Error = ();
+        type Error = FakeError;
 
         async fn request(&self, _msg: ()) -> Result<Self::Response, Self::Error> {
             let mut counter_lock = self.counter.lock().unwrap();
             if counter_lock.lt(&self.limit) {
                 *counter_lock += 1;
-                Err(())
+                Err(FakeError::Error)
             } else {
                 *counter_lock = 0;
                 Ok(())

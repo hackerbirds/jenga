@@ -1,5 +1,6 @@
+use core::error::Error;
 use std::{marker::PhantomData, time::Duration};
-
+use thiserror::Error;
 use tokio::time::timeout;
 
 use crate::{Middleware, Service};
@@ -12,9 +13,11 @@ pub struct Timeout<R, T: Service<R>> {
     phantom: PhantomData<R>,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum TimeoutError<R, T: Service<R>> {
-    ServiceError(T::Error),
+#[derive(Debug, PartialEq, Error)]
+pub enum TimeoutError<E: Error> {
+    #[error("{0}")]
+    ServiceError(E),
+    #[error("request timed out")]
     TimeoutError,
 }
 
@@ -30,7 +33,7 @@ impl<R, T: Service<R>> Timeout<R, T> {
 
 impl<R, T: Service<R>> Service<R> for Timeout<R, T> {
     type Response = T::Response;
-    type Error = TimeoutError<R, T>;
+    type Error = TimeoutError<T::Error>;
     async fn request(&self, msg: R) -> Result<Self::Response, Self::Error> {
         match timeout(self.timeout_duration, self.inner.request(msg)).await {
             Ok(res) => res.map_err(|e| TimeoutError::ServiceError(e)),
@@ -57,14 +60,20 @@ mod tests {
     #[derive(Debug, PartialEq)]
     pub struct TestTimeoutService {}
 
+    #[derive(Debug, PartialEq, Error)]
+    pub enum FakeError {
+        #[error("")]
+        Error,
+    }
+
     impl Service<u64> for TestTimeoutService {
         type Response = u64;
-        type Error = ();
+        type Error = FakeError;
 
         async fn request(&self, msg: u64) -> Result<Self::Response, Self::Error> {
             sleep(Duration::from_millis(msg)).await;
             if msg == 14 || msg == 18 {
-                Err(())
+                Err(FakeError::Error)
             } else {
                 Ok(msg.mul(2))
             }
@@ -91,7 +100,7 @@ mod tests {
         assert_eq!(service_timeout.request(10).await.unwrap(), 20);
         assert_eq!(
             service_timeout.request(14).await,
-            Err(TimeoutError::ServiceError(()))
+            Err(TimeoutError::ServiceError(FakeError::Error))
         );
         assert_eq!(
             service_timeout.request(18).await.unwrap_err(),

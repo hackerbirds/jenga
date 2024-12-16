@@ -3,6 +3,8 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use thiserror::Error;
+
 use crate::{Middleware, Service};
 
 /// A basic rate limiter that limits how many concurrent
@@ -13,9 +15,11 @@ pub struct RateLimit<const LIMIT: usize, R, T: Service<R>> {
     phantom: PhantomData<R>,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum RateLimitError<R, T: Service<R>> {
-    ServiceError(T::Error),
+#[derive(Debug, Error)]
+pub enum RateLimitError<E: core::error::Error> {
+    #[error("{0}")]
+    ServiceError(E),
+    #[error("rate limited")]
     RateLimited,
 }
 
@@ -31,7 +35,7 @@ impl<const LIMIT: usize, R: Clone, T: Service<R>> RateLimit<LIMIT, R, T> {
 
 impl<const LIMIT: usize, R: Clone, T: Service<R>> Service<R> for RateLimit<LIMIT, R, T> {
     type Response = T::Response;
-    type Error = RateLimitError<R, T>;
+    type Error = RateLimitError<T::Error>;
     async fn request(&self, msg: R) -> Result<Self::Response, Self::Error> {
         if let Err(_) = self
             .current
@@ -71,9 +75,12 @@ mod tests {
     #[derive(Debug)]
     pub struct TestRateLimitService {}
 
+    #[derive(Debug, Error)]
+    pub enum EmptyError {}
+
     impl Service<()> for TestRateLimitService {
         type Response = ();
-        type Error = ();
+        type Error = EmptyError;
 
         async fn request(&self, _msg: ()) -> Result<Self::Response, Self::Error> {
             sleep(Duration::from_millis(100)).await;
