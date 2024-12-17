@@ -6,13 +6,13 @@ edition = "2021"
 [features]
 rate_limit = []
 retry = []
-restart = ["dep:tokio"]
-retry_wait = ["dep:tokio"]
-timeout = ["dep:tokio"]
+restart = ["tokio/sync"]
+retry_wait = ["tokio/time"]
+timeout = ["tokio/time"]
 
 [dependencies]
 thiserror = "2"
-tokio = { version = "1", optional = true, features = ["rt", "macros", "time", "sync"] }
+tokio = { version = "1", optional = true, default_features = false }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }
