@@ -66,6 +66,10 @@ impl<
             g_e: PhantomData,
         })
     }
+
+    pub fn get_service(&self) -> &Mutex<S> {
+        &self.service
+    }
 }
 
 impl<
